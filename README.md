@@ -36,31 +36,9 @@ Output: Dynamic Text-to-Speech (gTTS) with accents matching the persona (e.g., B
 
 🛠️ Tech Stack
 
-Component
-
-Technology
-
-Role
-
-LLM (Text)
-
 Groq API (Llama-3.3-70b)
 
-High-speed reasoning & grading.
-
-LLM (Vision)
-
 Llama-3.2-11b-vision
-
-Analyzing uploaded charts/graphs.
-
-Orchestration
-
-LangChain
-
-Managing RAG chains & memory.
-
-Embeddings
 
 HuggingFace
 
@@ -70,13 +48,7 @@ Vector DB
 
 ChromaDB
 
-Semantic search & context retrieval.
-
-Frontend
-
 Streamlit
-
-Chat interface & dashboard.
 
 Audio
 
@@ -84,11 +56,7 @@ Groq Whisper & gTTS
 
 Speech-to-Text & Text-to-Speech.
 
-Visualization
-
 Plotly
-
-Radar charts for performance metrics.
 
 # Installation & Setup
 
