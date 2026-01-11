@@ -68,7 +68,7 @@ A Groq API Key (Free)
 
 1. Clone the Repository
 
-git clone [https://github.com/yourusername/lexicognition-vivabot.git](https://github.com/yourusername/lexicognition-vivabot.git)
+git clone [https://github.com/tanisha0330/lexicognition-vivabot.git](https://github.com/yourusername/lexicognition-vivabot.git)
 cd lexicognition-vivabot
 
 
