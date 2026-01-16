@@ -1,142 +1,181 @@
-🎓 Lexicognition VivaBot
+# 🎓 Lexicognition VivaBot
 
-"Redefining Education" — The Flagship AI Entry for Kshitij 2026
+**AI-Powered Research Paper Viva Examiner**
+*Kshitij 2026 – Lexicognition Challenge*
 
-Problem Statement: Build an AI Viva Voce Examiner.
+---
 
-# Overview
+## 🧠 What is this?
 
-Lexicognition VivaBot is not just a PDF summarizer; it is a relentless, intelligent External Examiner.
+Lexicognition VivaBot is an AI system that:
 
-Designed for the "Lexicognition" challenge, this AI agent ingests research papers (and visual diagrams) to conduct a high-stakes, simulated oral examination. It challenges students with conceptual questions, adapts to their skill level, and grades them strictly against the source material using RAG (Retrieval-Augmented Generation).
+* Ingests **any research paper (PDF)**
+* Understands its content using **RAG (Retrieval-Augmented Generation)**
+* Acts like a **strict viva examiner**
+* Asks **paper-specific technical questions**
+* Grades answers using **evidence from the paper**
+* Detects **hallucinations, contradictions, and vague answers**
 
-# Key Features (The "Wow" Factors)
+It is designed to handle:
 
-- Dynamic Persona System: * Strict Professor: Formal, intimidating, and academic.
+* ✅ Surprise unseen papers (on-the-spot)
+* ✅ Two-column IEEE / ACM PDFs
+* ✅ Wrong answers, vague answers, and confident nonsense
+* ✅ Multimodal questions (figures, diagrams)
 
-Roast Master: Uses sarcasm and wit to critique wrong answers.
+---
 
-Gen Z Tech Bro: Uses slang ("no cap", "cooked") for a casual vibe.
+## 🏗️ System Architecture (High Level)
 
-Pirate Captain: A fun, thematic mode for engagement.
+1. **PDF Ingestion**
 
-- Adaptive Difficulty Engine: The AI remembers your session history. If you fail, it asks fundamental definition questions. If you excel, it shifts to complex "Critique" and "Analysis" questions.
+   * Uses `pdfplumber` for layout-aware parsing (handles two-column papers)
+   * Splits into chunks and embeds using `all-MiniLM-L6-v2`
+   * Stores in ChromaDB vector store
 
-- Multimodal Vision Analysis: Supports uploading figures/graphs. The bot uses Llama 3.2 Vision to ask specific questions about data visualization.
+2. **Question Generation (RAG)**
 
-- Full Voice Interaction:
+   * Retrieves relevant chunks
+   * Forces **paper-specific** technical questions
+   * Adapts difficulty based on previous answers
 
-Input: Ultra-fast voice transcription using Groq Whisper.
+3. **Answer Evaluation Pipeline**
 
-Output: Dynamic Text-to-Speech (gTTS) with accents matching the persona (e.g., British for the Professor).
+   * Step 1: Retrieve ground-truth context
+   * Step 2: Run **contradiction detector**
+   * Step 3: Run **strict grader**
+   * Step 4: Enforce **hard score limits** if answer is wrong
+   * Step 5: Verify **quoted evidence**
 
-- Real-Time Skill Analytics: A sidebar "Skill Radar" chart tracks your Accuracy, Critical Thinking, and Clarity live during the exam.
+4. **Persona Layer**
 
-- Fact-Checked Grading: Every evaluation includes a strict Verdict, a Score (0-10), and a Citation (Page Number/Quote) from the paper to prove the AI isn't hallucinating.
+   * Only affects **style & tone**
+   * Does NOT affect grading strictness or correctness
 
-🛠️ Tech Stack
+---
 
-Groq API (Llama-3.3-70b)
+## 🧪 Key Safety & Robustness Features
 
-Llama-3.2-11b-vision
+* 🛡️ **No context bleed**: New PDF upload wipes old knowledge
+* 🛡️ **Contradiction detector**: Confidently wrong answers are capped ≤ 3
+* 🛡️ **Evidence enforcement**: Answers must cite text from paper
+* 🛡️ **Curly-brace sanitizer**: Prevents LaTeX/code from crashing prompts
+* 🛡️ **Two-column safe PDF parsing**
 
-HuggingFace
+---
 
-all-MiniLM-L6-v2 (Local & Free).
+## 🛠️ Tech Stack
 
-Vector DB
+* **Frontend**: Streamlit
+* **LLM**: Groq (LLaMA 3.3 70B, LLaMA 3.2 Vision)
+* **Embeddings**: Sentence-Transformers (MiniLM)
+* **Vector DB**: ChromaDB
+* **PDF Parsing**: pdfplumber
+* **Speech**: Groq Whisper + gTTS
+* **Charts**: Plotly
 
-ChromaDB
+---
 
-Streamlit
+## ⚙️ Installation
 
-Audio
+### 1️⃣ Clone the repo
 
-Groq Whisper & gTTS
+```bash
+git clone https://github.com/yourusername/lexicognition_viva_voce.git
+cd lexicognition_viva_voce
+```
 
-Speech-to-Text & Text-to-Speech.
+---
 
-Plotly
+### 2️⃣ Create virtual environment (recommended)
 
-# Installation & Setup
-
-Prerequisites
-
-Python 3.10+
-
-A Groq API Key (Free)
-
-1. Clone the Repository
-
-git clone [https://github.com/tanisha0330/lexicognition-vivabot.git](https://github.com/yourusername/lexicognition-vivabot.git)
-cd lexicognition-vivabot
-
-
-2. Create a Virtual Environment
-
-# Windows
+```bash
 python -m venv venv
-venv\Scripts\activate
+venv\Scripts\activate   # Windows
+source venv/bin/activate  # Linux/Mac
+```
 
-# Mac/Linux
-python3 -m venv venv
-source venv/bin/activate
+---
 
+### 3️⃣ Install dependencies
 
-3. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
 
-pip install streamlit langchain langchain-groq langchain-community chromadb pypdf python-dotenv sentence-transformers plotly gTTS pillow
+---
 
+### 4️⃣ Set API key
 
-4. Configure API Keys
+Create a file named:
 
-Create a file named .env in the root directory and add your key:
+```
+.env
+```
 
-GROQ_API_KEY=gsk_your_actual_api_key_here
+Put this inside:
 
+```
+GROQ_API_KEY=your_actual_key_here
+```
 
-5. Run the Application
+---
 
-streamlit run app.py
+### 5️⃣ Run the app
 
+```bash
+streamlit run main.py
+```
 
-# How to Use
+---
 
-Upload Knowledge: Use the sidebar to upload a Research Paper (PDF). Optionally, upload a Graph/Chart image for vision testing.
+## 🧑‍🏫 How to Use
 
-Select Examiner: Choose a persona (e.g., "Strict Professor") from the sidebar settings.
+1. Upload a **PDF research paper**
+2. (Optional) Upload a **figure / diagram image**
+3. Select examiner persona
+4. Start the viva
+5. Answer via:
 
-Start the Viva: The AI will generate a conceptual question.
+   * 🎤 Voice
+   * ⌨️ Text
+6. Get:
 
-Answer: * Voice: Click "Record Answer" and speak.
+   * Score
+   * Evidence
+   * Strict feedback
+   * Skill radar
 
-Text: Type your answer in the chat box.
+---
 
-Review Feedback: Watch the AI grade you live, update your Radar Chart, and verbally respond.
+## 🏆 Why this will score well in judging
 
-Download Report: At the end of the session, download your full Viva Transcript.
+* ✅ Questions are **paper-specific**, not generic
+* ✅ Wrong answers are **detected and penalized**
+* ✅ Uses **retrieval + verification**, not vibes
+* ✅ Handles **surprise PDFs safely**
+* ✅ Works on **real research papers**
 
-#Architecture Flowchart
+---
 
-graph TD
-    User[User] -->|Uploads PDF| Ingest{Ingestion Pipeline}
-    Ingest -->|PyPDFLoader| Text[Raw Text]
-    Text -->|RecursiveSplitter| Chunks[Text Chunks]
-    Chunks -->|HuggingFace Embeddings| VectorDB[(ChromaDB)]
-    
-    User -->|Selects Persona| System[System Prompt]
-    
-    subgraph "Exam Loop"
-        GenQ{Generate Question} -->|Retrieve Context| VectorDB
-        VectorDB -->|Top-k Context| GenQ
-        GenQ -->|Llama 3.3| Q[Question]
-        
-        Q --> User
-        User -->|Voice/Text Answer| Grading{Grading Agent}
-        
-        Grading -->|Retrieve Evidence| VectorDB
-        Grading -->|Compare Answer vs PDF| Eval[Llama 3.3 Evaluation]
-        
-        Eval -->|JSON Output| Dashboard[Update Stats/Radar]
-        Eval -->|TTS Audio| User
-    end
+## ⚠️ Ethics & Safety
+
+* No user data stored
+* No training on uploaded papers
+* Everything runs session-local
+* Designed for **evaluation, not memorization**
+
+---
+
+## 📌 Known Limitations
+
+* Scanned PDFs without text layer may not parse well
+* Vision questions are not yet fact-verified against image content
+* Requires internet for Groq API
+
+---
+
+## 🏁 Conclusion
+
+This is not a chatbot.
+This is an **AI viva examiner with grounding, verification, and enforcement.**
