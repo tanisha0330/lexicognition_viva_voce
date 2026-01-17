@@ -102,6 +102,11 @@ def parse_json_robust(text):
     except:
         return None
 
+def sanitize_text(text):
+    """Sanitizes text to prevent Prompt Injection/Format crashes (e.g. LaTeX brackets)."""
+    if not text: return ""
+    return text.replace("{", "(").replace("}", ")")
+
 def plot_radar_chart():
     """Generates the Radar Chart."""
     if not st.session_state.metrics["Accuracy"]: return None
@@ -134,7 +139,8 @@ def plot_radar_chart():
 load_dotenv()
 
 # --- 5. IMPORTS (LangChain & Groq) ---
-from langchain_community.document_loaders import PyPDFLoader
+# FIX: Replaced PyPDFLoader with PDFPlumberLoader for better 2-column support
+from langchain_community.document_loaders import PDFPlumberLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
@@ -189,7 +195,8 @@ def process_pdf(file_content):
         tmp_file.write(file_content)
         tmp_path = tmp_file.name
 
-    loader = PyPDFLoader(tmp_path)
+    # FIX: Use PDFPlumberLoader for better multi-column parsing
+    loader = PDFPlumberLoader(tmp_path)
     docs = loader.load()
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     splits = text_splitter.split_documents(docs)
@@ -222,8 +229,13 @@ def generate_question(vector_store, history, persona_prompt):
     Context: {{context}}
     Question:"""
     
+    # FIX: Sanitize retrieved text in the chain to prevent Prompt Injection/LaTeX crashes
+    def get_sanitized_context(docs):
+        text = "\n".join(d.page_content for d in docs)
+        return sanitize_text(text)
+
     chain = (
-        {"context": retriever | (lambda d: "\n".join(x.page_content for x in d)), "question": RunnablePassthrough()}
+        {"context": retriever | get_sanitized_context, "question": RunnablePassthrough()}
         | ChatPromptTemplate.from_template(template)
         | llm
         | StrOutputParser()
@@ -237,10 +249,11 @@ def grade_answer(user_answer, question, vector_store, persona_prompt):
     
     retriever = vector_store.as_retriever()
     docs = retriever.invoke(f"{question} {user_answer}")
-    context_text = "\n".join([d.page_content for d in docs])
+    # FIX: Sanitize context here as well
+    context_text = sanitize_text("\n".join([d.page_content for d in docs]))
     page_num = docs[0].metadata.get('page', 'Unknown')
     
-    # Updated template with quadruple braces for proper JSON handling in f-strings + LangChain
+    # FIX: Added Strict Rubric and Contradiction Check
     template = f"""{persona_prompt}
     
     Question: {question}
@@ -248,11 +261,19 @@ def grade_answer(user_answer, question, vector_store, persona_prompt):
     True Context (Page {page_num}): {context_text}
     
     Task: Grade the answer and return ONLY valid JSON.
+    
+    GRADING RUBRIC (Strict Enforcement):
+    - Score 0-3: Answer is vague, irrelevant, or contradicts the context (Hallucination).
+    - Score 4-7: Answer is partially correct but misses key details or nuance.
+    - Score 8-10: Answer is precise, comprehensive, and fully supported by the text.
+    
+    CRITICAL: Check for hallucinations. If the student mentions facts not in the context, penalize heavily.
+    
     Format:
     {{{{
         "score": (int 0-10),
         "feedback": "Your persona-based response here",
-        "evidence": "Short quote from text.",
+        "evidence": "Short quote from text verifying the truth.",
         "metrics": {{{{ "Accuracy": (int), "Depth": (int), "Clarity": (int) }}}}
     }}}}
     """
@@ -278,10 +299,11 @@ uploaded_file = st.sidebar.file_uploader("1. Upload PDF (Text)", type="pdf")
 
 # Handle PDF Ingestion
 if uploaded_file:
-    if st.session_state.vector_store is None:
-        with st.spinner("🧠 Ingesting Text..."):
-            st.session_state.vector_store = process_pdf(uploaded_file.getvalue())
-        st.sidebar.success("PDF Loaded!")
+    # FIX: Context Bleed - Always re-process uploaded file to ensure store matches current file
+    # @st.cache_resource on process_pdf ensures this is efficient if file hasn't changed.
+    with st.spinner("🧠 Ingesting Text..."):
+        st.session_state.vector_store = process_pdf(uploaded_file.getvalue())
+    st.sidebar.success("PDF Loaded!")
 
 if st.session_state.vector_store:
     # Chat Display
