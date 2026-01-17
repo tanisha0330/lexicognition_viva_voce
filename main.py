@@ -59,24 +59,37 @@ if "last_q_type" not in st.session_state: st.session_state.last_q_type = "text"
 
 # --- 4. HELPER FUNCTIONS ---
 def text_to_speech(text, accent_tld='co.uk'):
-    """Plays audio using gTTS with dynamic accents."""
+    """Plays audio using gTTS with dynamic accents. Fixed for Windows file locking."""
     try:
         # Clean text of markdown/asterisks for better speech
         clean_text = re.sub(r'\*+', '', text) 
         tts = gTTS(text=clean_text, lang='en', tld=accent_tld)
+        
+        # Create a temporary file
+        # delete=False is required to close the file before reopening/deleting on Windows
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-            tts.save(fp.name)
-            with open(fp.name, 'rb') as f:
-                data = f.read()
-                b64 = base64.b64encode(data).decode()
-                md = f"""
-                    <audio autoplay>
-                    <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
-                    </audio>
-                    """
-                st.markdown(md, unsafe_allow_html=True)
-            os.remove(fp.name)
+            temp_filename = fp.name
+            # Close the file handle immediately so gTTS/other processes can access it freely
+        
+        # Write to the file
+        tts.save(temp_filename)
+        
+        # Read the file
+        with open(temp_filename, 'rb') as f:
+            data = f.read()
+            b64 = base64.b64encode(data).decode()
+            md = f"""
+                <audio autoplay>
+                <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+                </audio>
+                """
+            st.markdown(md, unsafe_allow_html=True)
+            
+        # Delete the file now that we are done and it's closed
+        os.remove(temp_filename)
+        
     except Exception as e:
+        # Log error to console but don't crash UI
         print(f"Audio Error: {e}")
 
 def parse_json_robust(text):
@@ -151,7 +164,8 @@ with st.sidebar:
         
         st.caption("Skill Radar")
         chart = plot_radar_chart()
-        if chart: st.plotly_chart(chart, use_container_width=True)
+        # FIXED: Replaced use_container_width=True with width="stretch" per error log
+        if chart: st.plotly_chart(chart, width="stretch")
             
         st.progress(min(st.session_state.question_count / 5, 1.0))
         st.caption(f"Question {st.session_state.question_count}/5")
@@ -184,7 +198,13 @@ def process_pdf(file_content):
     splits = text_splitter.split_documents(docs)
     embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     vectorstore = Chroma.from_documents(documents=splits, embedding=embeddings)
-    os.remove(tmp_path)
+    
+    # Clean up temp PDF file properly
+    try:
+        os.remove(tmp_path)
+    except:
+        pass
+        
     return vectorstore
 
 def generate_question(vector_store, history, persona_prompt):
@@ -357,7 +377,7 @@ if st.session_state.vector_store or st.session_state.vision_image_data:
                 try:
                     transcription = client.audio.transcriptions.create(
                         file=("input.wav", audio_val, "audio/wav"),
-                        model="distil-whisper-large-v3-en",
+                        model="whisper-large-v3",
                         response_format="json", temperature=0.0
                     )
                     final_ans = transcription.text
