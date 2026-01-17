@@ -8,8 +8,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 from dotenv import load_dotenv
 from gtts import gTTS
-from PIL import Image
-import io
+# Removed PIL and io imports as they were only used for image handling
 
 # --- 1. CONFIGURATION & CSS ---
 st.set_page_config(page_title="Lexicognition VivaBot", layout="wide", page_icon="🎓")
@@ -54,8 +53,6 @@ if "vector_store" not in st.session_state: st.session_state.vector_store = None
 if "history" not in st.session_state: st.session_state.history = [] 
 if "metrics" not in st.session_state: 
     st.session_state.metrics = {"Accuracy": [], "Depth": [], "Clarity": []}
-if "vision_image_data" not in st.session_state: st.session_state.vision_image_data = None
-if "last_q_type" not in st.session_state: st.session_state.last_q_type = "text"
 
 # --- 4. HELPER FUNCTIONS ---
 def text_to_speech(text, accent_tld='co.uk'):
@@ -145,7 +142,7 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
-from groq import Groq # Direct client for Vision
+from groq import Groq # Direct client for Audio Transcription
 
 # --- 6. SIDEBAR DASHBOARD ---
 with st.sidebar:
@@ -233,43 +230,15 @@ def generate_question(vector_store, history, persona_prompt):
     )
     return chain.invoke("new question")
 
-def generate_vision_question(image_base64, persona_prompt):
-    """Generates a question from an image using Llama 3.2 Vision"""
-    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-    
-    prompt = f"{persona_prompt} Look at this image from the paper. Ask a hard conceptual question about this data, architecture, or diagram. Keep it short."
-    
-    completion = client.chat.completions.create(
-        model="llama-3.2-11b-vision-preview",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
-                ]
-            }
-        ],
-        temperature=0.7,
-        max_tokens=100
-    )
-    return completion.choices[0].message.content
-
-def grade_answer(user_answer, question, vector_store, persona_prompt, image_context=None):
+def grade_answer(user_answer, question, vector_store, persona_prompt):
     api_key = os.getenv("GROQ_API_KEY")
-    # If image_context is present, we technically should use vision model to grade, 
-    # but Llama 3.3 text model is smarter at logic. We'll pass "Context: Image Question"
     
     llm = ChatGroq(groq_api_key=api_key, model_name="llama-3.3-70b-versatile", temperature=0.1)
     
-    context_text = "N/A (Visual Question)"
-    page_num = "Image"
-    
-    if not image_context:
-        retriever = vector_store.as_retriever()
-        docs = retriever.invoke(f"{question} {user_answer}")
-        context_text = "\n".join([d.page_content for d in docs])
-        page_num = docs[0].metadata.get('page', 'Unknown')
+    retriever = vector_store.as_retriever()
+    docs = retriever.invoke(f"{question} {user_answer}")
+    context_text = "\n".join([d.page_content for d in docs])
+    page_num = docs[0].metadata.get('page', 'Unknown')
     
     # Updated template with quadruple braces for proper JSON handling in f-strings + LangChain
     template = f"""{persona_prompt}
@@ -283,7 +252,7 @@ def grade_answer(user_answer, question, vector_store, persona_prompt, image_cont
     {{{{
         "score": (int 0-10),
         "feedback": "Your persona-based response here",
-        "evidence": "Short quote from text (or 'Visual Check' if image)",
+        "evidence": "Short quote from text.",
         "metrics": {{{{ "Accuracy": (int), "Depth": (int), "Clarity": (int) }}}}
     }}}}
     """
@@ -305,7 +274,7 @@ def grade_answer(user_answer, question, vector_store, persona_prompt, image_cont
 st.sidebar.divider()
 st.sidebar.header("📂 Knowledge Base")
 uploaded_file = st.sidebar.file_uploader("1. Upload PDF (Text)", type="pdf")
-uploaded_image = st.sidebar.file_uploader("2. Upload Figure/Graph (Vision)", type=["png", "jpg", "jpeg"])
+# Removed Image Uploader
 
 # Handle PDF Ingestion
 if uploaded_file:
@@ -314,17 +283,7 @@ if uploaded_file:
             st.session_state.vector_store = process_pdf(uploaded_file.getvalue())
         st.sidebar.success("PDF Loaded!")
 
-# Handle Image Ingestion
-if uploaded_image:
-    if st.session_state.vision_image_data is None:
-        image = Image.open(uploaded_image)
-        # Convert to base64
-        buffered = io.BytesIO()
-        image.save(buffered, format="JPEG")
-        st.session_state.vision_image_data = base64.b64encode(buffered.getvalue()).decode()
-        st.sidebar.success("Vision Data Loaded!")
-
-if st.session_state.vector_store or st.session_state.vision_image_data:
+if st.session_state.vector_store:
     # Chat Display
     chat_container = st.container()
     with chat_container:
@@ -337,29 +296,10 @@ if st.session_state.vector_store or st.session_state.vision_image_data:
     # Check if we are mid-question or need a new one
     if st.session_state.current_question is None:
         if st.session_state.question_count < 5:
-            # DECISION: Text Question or Vision Question?
-            # If image exists, 50% chance or if specific button pressed (automated here for flow)
-            use_vision = False
-            if st.session_state.vision_image_data:
-                # Simple toggle: If last was text, try vision. Or just random.
-                # Let's alternate if both exist.
-                if st.session_state.vector_store and st.session_state.last_q_type == "text":
-                    use_vision = True
-                elif not st.session_state.vector_store:
-                    use_vision = True
-            
             with st.spinner(f"{selected_persona} is thinking..."):
-                if use_vision:
-                    q = generate_vision_question(st.session_state.vision_image_data, persona_data['prompt'])
-                    st.session_state.last_q_type = "vision"
-                    q_prefix = "[Visual Analysis] "
-                else:
-                    q = generate_question(st.session_state.vector_store, st.session_state.history, persona_data['prompt'])
-                    st.session_state.last_q_type = "text"
-                    q_prefix = ""
-
+                q = generate_question(st.session_state.vector_store, st.session_state.history, persona_data['prompt'])
                 st.session_state.current_question = q
-                st.session_state.messages.append({"role": "assistant", "content": f"**Q{st.session_state.question_count + 1}:** {q_prefix}{q}"})
+                st.session_state.messages.append({"role": "assistant", "content": f"**Q{st.session_state.question_count + 1}:** {q}"})
                 st.rerun()
         else:
             st.balloons()
@@ -367,7 +307,8 @@ if st.session_state.vector_store or st.session_state.vision_image_data:
 
     # Input & Grading
     if st.session_state.current_question and st.session_state.question_count < 5:
-        audio_val = st.audio_input("🎤 Voice Answer")
+        # Key fix: Added dynamic key based on question_count to force widget reset
+        audio_val = st.audio_input("🎤 Voice Answer", key=f"audio_q{st.session_state.question_count}")
         text_val = st.chat_input("Type Answer...")
         
         final_ans = None
@@ -396,13 +337,11 @@ if st.session_state.vector_store or st.session_state.vision_image_data:
                     st.markdown(final_ans)
             
             with st.spinner("Grading..."):
-                is_vision_q = (st.session_state.last_q_type == "vision")
                 data, page = grade_answer(
                     final_ans, 
                     st.session_state.current_question, 
                     st.session_state.vector_store, 
-                    persona_data['prompt'],
-                    image_context=is_vision_q
+                    persona_data['prompt']
                 )
                 
                 # Update Stats
@@ -429,4 +368,4 @@ if st.session_state.vector_store or st.session_state.vision_image_data:
                 st.session_state.current_question = None
                 st.rerun()
 else:
-    st.info("👆 Upload a PDF or a Graph Image in the sidebar to begin.")
+    st.info("👆 Upload a PDF in the sidebar to begin.")
